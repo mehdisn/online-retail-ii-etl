@@ -10,5 +10,6 @@ def get_spark(app_name="retail_spark"):
         .config("spark.hadoop.fs.s3a.secret.key", os.environ["S3_SECRET_KEY"])
         .config("spark.hadoop.fs.s3a.path.style.access", True)
         .config("spark.hadoop.fs.s3a.impl", "org.apache.hadoop.fs.s3a.S3AFileSystem")
+        .config("spark.jars", "/opt/spark/jars/clickhouse-spark-3.5-0.7.18-shaded.jar")
         .getOrCreate()
     )

@@ -1,11 +1,11 @@
 import argparse, os
 from pyspark.sql import functions as F
 from common_spark import get_spark
-import clickhouse_connect
 
 CH_HOST = os.getenv("CLICKHOUSE_HOST","clickhouse")
-CH_PORT = int(os.getenv("CLICKHOUSE_PORT",9000))
+CH_PORT = int(os.getenv("CLICKHOUSE_HTTP_PORT", 8123)) 
 CH_DB = os.getenv("CLICKHOUSE_DB","retail")
+CH_URL = f"jdbc:clickhouse://{CH_HOST}:{CH_PORT}/{CH_DB}"
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
@@ -30,19 +30,24 @@ if __name__ == "__main__":
     fact_sales = (
         src.withColumn("date", F.to_date("InvoiceDate"))
            .withColumn("amount", F.col("Quantity")*F.col("UnitPrice"))
-           .select("InvoiceNo","CustomerID","StockCode","date","Quantity","UnitPrice","amount")
+           # Add InvoiceDate, which is needed for ML job (see Step 3)
+           .select("InvoiceNo","CustomerID","StockCode", "InvoiceDate", "date","Quantity","UnitPrice","amount") 
            .where("Quantity >= 0 and UnitPrice >= 0")
     )
 
     client = clickhouse_connect.get_client(host=CH_HOST, port=CH_PORT, database=CH_DB)
 
-    def to_ch(df, table, fields):
-        rows = [tuple(x[c] for c in fields) for x in df.toPandas().to_dict("records")]
-        client.insert(table, rows, column_names=fields)
+    def write_to_clickhouse(df, table_name):
+        df.write.format("clickhouse") \
+          .option("url", CH_URL) \
+          .option("driver", "com.clickhouse.jdbc.ClickHouseDriver") \
+          .option("dbtable", f"{CH_DB}.{table_name}") \
+          .mode("append") \
+          .save()
 
-    to_ch(dim_customer, "dim_customer", ["CustomerID","customer_country"])
-    to_ch(dim_product, "dim_product", ["StockCode","product_desc"])
-    to_ch(dim_date, "dim_date", ["date"])
-    to_ch(fact_sales, "fact_sales", ["InvoiceNo","CustomerID","StockCode","date","Quantity","UnitPrice","amount"])
-
+    write_to_clickhouse(dim_customer, "dim_customer")
+    write_to_clickhouse(dim_product, "dim_product")
+    write_to_clickhouse(dim_date, "dim_date") # This will be removed in Step 4
+    write_to_clickhouse(fact_sales, "fact_sales")
+    
     spark.stop()
