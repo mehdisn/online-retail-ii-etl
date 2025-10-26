@@ -39,8 +39,7 @@ if __name__ == "__main__":
         print("Warning: Running transform on entire source table.")
     dim_customer = src.select("CustomerID", "Country").where("CustomerID IS NOT NULL").dropDuplicates(["CustomerID"]).withColumnRenamed("Country","customer_country")
     dim_product = src.select("StockCode","Description").dropDuplicates(["StockCode"]).withColumnRenamed("Description","product_desc")
-    dim_date = src.select(F.col("InvoiceDate").alias("ts")).withColumn("date", F.to_date("ts")).select("date").dropDuplicates()
-
+    
     fact_sales = (
         src.withColumn("date", F.to_date("InvoiceDate"))
            .withColumn("amount", F.col("Quantity")*F.col("UnitPrice"))
@@ -61,7 +60,6 @@ if __name__ == "__main__":
 
     write_to_clickhouse(dim_customer, "dim_customer")
     write_to_clickhouse(dim_product, "dim_product")
-    write_to_clickhouse(dim_date, "dim_date") # This will be removed in Step 4
     write_to_clickhouse(fact_sales, "fact_sales")
     
     spark.stop()
