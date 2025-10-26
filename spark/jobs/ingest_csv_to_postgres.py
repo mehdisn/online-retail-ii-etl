@@ -32,6 +32,7 @@ if __name__ == "__main__":
     df = (
         spark.read.option("header", True).schema(schema)
         .csv(f"s3a://{os.environ['S3_BUCKET_RAW']}/{args.prefix}")
+        .where("InvoiceNo IS NOT NULL")
     )
 
     dq = df.select(
@@ -42,9 +43,31 @@ if __name__ == "__main__":
     assert dq["neg_qty"] == 0 and dq["neg_price"] == 0, f"DQ failed: {dq}"
 
     df = df.withColumn("InvoiceDate", F.to_timestamp("InvoiceDate"))
+
+    try:
+        existing_invoices = (
+            spark.read.format("jdbc")
+            .option("url", PG_URL)
+            .options(**pg_props)
+            .option("dbtable", "(SELECT DISTINCT InvoiceNo FROM stage.online_retail_ii) as existing")
+            .load()
+        )
+        
+        df = df.join(
+            existing_invoices,
+            on="InvoiceNo",
+            how="left_anti" # Keep only rows from df that are NOT in existing_invoices
+        )
+    except Exception as e:
+        # Handle case where table doesn't exist on first run
+        if "relation \"stage.online_retail_ii\" does not exist" in str(e):
+            print("Staging table not found. Performing initial load.")
+        else:
+            raise e
+
     df = df.withColumn("ingested_at", F.current_timestamp())
 
-    df.write.mode("overwrite").format("jdbc").option("url", PG_URL).options(**pg_props).option(
+    df.write.mode("append").format("jdbc").option("url", PG_URL).options(**pg_props).option(
         "dbtable", "stage.online_retail_ii"
     ).save()
     spark.stop()
