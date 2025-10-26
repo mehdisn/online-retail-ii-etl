@@ -3,17 +3,26 @@ from common_spark import get_spark
 from pyspark.sql import functions as F
 
 spark = get_spark("retail_features")
-pg = ("jdbc:postgresql://{}:{}/{}".format(os.getenv("POSTGRES_HOST","postgres"), os.getenv("POSTGRES_PORT","5432"), os.getenv("POSTGRES_DB","retail")))
-props = {"user": os.getenv("POSTGRES_USER","retail"), "password": os.getenv("POSTGRES_PASSWORD","retail"), "driver": "org.postgresql.Driver"}
 
-src = spark.read.format("jdbc").option("url", pg).options(**props).option("dbtable", "stage.online_retail_ii").load()
+CH_HOST = os.getenv("CLICKHOUSE_HOST", "clickhouse")
+CH_PORT = int(os.getenv("CLICKHOUSE_HTTP_PORT", 8123))
+CH_DB = os.getenv("CLICKHOUSE_DB", "retail")
+CH_URL = f"jdbc:clickhouse://{CH_HOST}:{CH_PORT}/{CH_DB}"
+
+src = (
+    spark.read.format("clickhouse")
+    .option("url", CH_URL)
+    .option("driver", "com.clickhouse.jdbc.ClickHouseDriver")
+    .option("dbtable", f"{CH_DB}.fact_sales") # Read from fact_sales
+    .load()
+)
 
 rfm = (src
    .groupBy("CustomerID")
    .agg(
-        F.max("InvoiceDate").alias("last_purchase"),
+        F.max("InvoiceDate").alias("last_purchase"), 
         F.countDistinct("InvoiceNo").alias("frequency"),
-        F.sum(F.col("Quantity")*F.col("UnitPrice")).alias("monetary"),
+        F.sum("amount").alias("monetary"), # Use pre-calculated amount
    )
    .withColumn("recency_days", F.datediff(F.current_timestamp(), F.col("last_purchase")))
    .select("CustomerID","recency_days","frequency","monetary")

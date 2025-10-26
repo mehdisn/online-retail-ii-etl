@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS retail.fact_sales (
   InvoiceNo String,
   CustomerID UInt32,
   StockCode String,
+  InvoiceDate DateTime,
   date Date,
   Quantity Int32,
   UnitPrice Float64,
