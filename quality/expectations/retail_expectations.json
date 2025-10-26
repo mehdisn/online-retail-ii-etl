@@ -1,0 +1,30 @@
+{}
+{
+    "expectation_suite_name": "retail_staging",
+    "expectations": [
+      {
+        "expectation_type": "expect_column_to_not_be_null",
+        "kwargs": { "column": "InvoiceNo" }
+      },
+      {
+        "expectation_type": "expect_column_values_to_not_be_null",
+        "kwargs": { "column": "CustomerID" }
+      },
+      {
+        "expectation_type": "expect_column_values_to_be_of_type",
+        "kwargs": { "column": "Quantity", "type_": "IntegerType" }
+      },
+      {
+        "expectation_type": "expect_column_values_to_be_between",
+        "kwargs": { "column": "UnitPrice", "min_value": 0, "mostly": 0.99 }
+      },
+      {
+        "expectation_type": "expect_column_values_to_be_between",
+        "kwargs": { "column": "Quantity", "min_value": 0, "mostly": 0.95 }
+      },
+      {
+        "expectation_type": "expect_table_row_count_to_be_greater_than",
+        "kwargs": { "value": 0 }
+      }
+    ]
+  }
