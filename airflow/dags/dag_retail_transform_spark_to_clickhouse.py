@@ -12,5 +12,11 @@ with DAG(
 ) as dag:
     transform = BashOperator(
         task_id="spark_transform",
-        bash_command="spark-submit --master local[4] /opt/spark/jobs/transform_conform_to_clickhouse.py",
+        # Pass data interval dates to the job
+        bash_command=(
+            "spark-submit --master local[4] /opt/spark/jobs/transform_conform_to_clickhouse.py "
+            "--start '{{ data_interval_start }}' "
+            "--end '{{ data_interval_end }}' "
+            "--mode incremental" # Use 'incremental' mode
+        ),
     )

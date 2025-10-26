@@ -20,9 +20,23 @@ if __name__ == "__main__":
 
     src = spark.read.format("jdbc").option("url", pg).options(**props).option("dbtable", "stage.online_retail_ii").load()
 
-    if args.start and args.end:
-        src = src.filter((F.col("InvoiceDate") >= F.to_timestamp(F.lit(args.start))) & (F.col("InvoiceDate") <= F.to_timestamp(F.lit(args.end))))
-
+    if args.start and args.end and args.mode == 'backfill':
+        # Backfill DAG filters on InvoiceDate
+        print(f"Running backfill for InvoiceDate between {args.start} and {args.end}")
+        src = src.filter(
+            (F.col("InvoiceDate") >= F.to_timestamp(F.lit(args.start))) &
+            (F.col("InvoiceDate") <= F.to_timestamp(F.lit(args.end)))
+        )
+    elif args.start and args.end and args.mode == 'incremental':
+        # Daily DAG filters on ingested_at
+        print(f"Running incremental load for ingested_at between {args.start} and {args.end}")
+        src = src.filter(
+            (F.col("ingested_at") >= F.to_timestamp(F.lit(args.start))) &
+            (F.col("ingested_at") < F.to_timestamp(F.lit(args.end)))
+        )
+    else:
+        # Default behavior if no args (optional)
+        print("Warning: Running transform on entire source table.")
     dim_customer = src.select("CustomerID", "Country").where("CustomerID IS NOT NULL").dropDuplicates(["CustomerID"]).withColumnRenamed("Country","customer_country")
     dim_product = src.select("StockCode","Description").dropDuplicates(["StockCode"]).withColumnRenamed("Description","product_desc")
     dim_date = src.select(F.col("InvoiceDate").alias("ts")).withColumn("date", F.to_date("ts")).select("date").dropDuplicates()
