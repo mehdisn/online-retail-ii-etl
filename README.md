@@ -56,7 +56,6 @@ The Spark ingestion job expects these **exact column names**:
 | `CustomerID` | Customer identifier |
 | `Country` | Customer country |
 
-**Important:** The original Excel workbook may use `Invoice`, `Price`, and `Customer ID` instead of `InvoiceNo`, `UnitPrice`, and `CustomerID`. The ingestion job reads **CSV**, not Excel. The current ingestion assertions also reject negative quantities and prices, so raw cancellations/returns must be handled before loading. Missing customer identifiers are incompatible with the current non-nullable ClickHouse fact schema.
 
 ## Repository layout
 
@@ -149,8 +148,6 @@ print(f"Prepared {len(df):,} rows")
 PY
 ```
 
-This is an **example preprocessing policy**, not a lossless conversion of the original data: it excludes returns/cancellations and rows without a usable customer ID. Adjust it if you plan to model returns or anonymous purchases.
-
 ### 3. Start the infrastructure
 
 To start the storage, databases, and Metabase without implying that Airflow is fully configured:
@@ -172,7 +169,6 @@ MinIO's bucket bootstrap is intended to create `retail-raw` and `retail-features
 | Metabase | [http://localhost:3000](http://localhost:3000) |
 | Airflow (once configured) | `http://localhost:8080` |
 
-> **Port conflict:** MinIO's S3 API and ClickHouse's native interface are both published on **host port 9000** in the current `docker-compose.yml`. Resolve that conflict before attempting to run both services together. Update only one host-side port mapping; the internal service ports can remain unchanged.
 
 ### 4. Upload the prepared CSV to MinIO
 
@@ -233,8 +229,6 @@ The following issues are visible in the current source and must be addressed bef
 6. **Tests are preliminary:** They are integration-dependent smoke tests, not a passing automated test suite. The ClickHouse test uses port `9000` with a client normally configured for the HTTP port (`8123`).
 7. **Security is development-oriented:** Example passwords are weak, ports are exposed on the host, and the bucket bootstrap configures anonymous download access for the features bucket.
 
-The project should be treated as an **engineering prototype** until these issues are resolved and an end-to-end load is validated.
-
 ## Development commands
 
 ```bash
@@ -249,16 +243,3 @@ docker compose down
 docker compose down -v
 ```
 
-The repository also defines `make up`, `make seed`, `make logs`, `make backfill`, and `make down`. These shortcuts are **not a substitute for fixing the issues above**. In particular, `make down` removes persistent volumes.
-
-## Possible next steps
-
-- Fix Compose port mappings and complete Airflow initialization and scheduling.
-- Repair the ingestion DAG, mount the Spark jobs, and verify Spark connector dependencies.
-- Implement consistent handling for returns, missing customer IDs, and invoice-line deduplication.
-- Make incremental loads/backfills idempotent and validate downstream data quality.
-- Add automated end-to-end tests and a sample Metabase dashboard.
-
-## License
-
-No `LICENSE` file is currently included in this repository. Add an explicit license if you intend to grant reuse rights to others.
